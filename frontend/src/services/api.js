@@ -1,5 +1,8 @@
 import axios from "axios";
-const api = axios.create({ baseURL: "/api", timeout: 60000 });
+// VITE_API_URL: set in Vercel env vars if backend is on a different domain.
+// Leave unset when using root vercel.json proxy (relative /api works in that case).
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api", timeout: 60000 });
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -14,7 +17,7 @@ api.interceptors.response.use((r) => r, (error) => {
 });
 export const authAPI = { register: (d) => api.post("/auth/register", d), login: (d) => api.post("/auth/login", d), getMe: () => api.get("/auth/me") };
 export const filesAPI = {
-  upload: (formData, onProgress) => api.post("/files/upload", formData, { headers: { "Content-Type": "multipart/form-data" }, onUploadProgress: (e) => onProgress && onProgress(Math.round((e.loaded*100)/e.total)) }),
+  upload: (formData, onProgress) => api.post("/files/upload", formData, { headers: { "Content-Type": "multipart/form-data" }, onUploadProgress: (e) => onProgress && onProgress(Math.round((e.loaded * 100) / e.total)) }),
   list: () => api.get("/files"),
   delete: (id) => api.delete(`/files/${id}`),
 };

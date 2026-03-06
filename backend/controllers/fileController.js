@@ -1,5 +1,4 @@
 ﻿const path = require("path");
-const fs = require("fs-extra");
 const { v4: uuidv4 } = require("uuid");
 const pool = require("../config/database");
 const enc = require("../services/encryptionService");
@@ -7,20 +6,19 @@ const storage = require("../services/storageService");
 const scanner = require("../services/virusScannerService");
 
 async function uploadFile(req, res) {
-  const tempFile = req.file;
-  if (!tempFile) return res.status(400).json({ error: "No file uploaded" });
+  const uploadedFile = req.file;
+  if (!uploadedFile) return res.status(400).json({ error: "No file uploaded" });
+  // With memoryStorage, the file is in uploadedFile.buffer (no temp path on disk)
+  const fileBuffer = uploadedFile.buffer;
   const client = await pool.connect();
   try {
-    const fileBuffer = await fs.readFile(tempFile.path);
-    const scan = await scanner.scanBuffer(fileBuffer, tempFile.originalname);
+    const scan = await scanner.scanBuffer(fileBuffer, uploadedFile.originalname);
     if (!scan.clean) {
-      await fs.remove(tempFile.path);
       return res.status(422).json({ error: "Virus detected", threat: scan.threat });
     }
     const userResult = await client.query("SELECT storage_used, storage_limit FROM users WHERE id = $1", [req.user.id]);
     const { storage_used, storage_limit } = userResult.rows[0];
-    if (storage_used + tempFile.size > storage_limit) {
-      await fs.remove(tempFile.path);
+    if (storage_used + uploadedFile.size > storage_limit) {
       return res.status(413).json({ error: "Storage quota exceeded" });
     }
     const { key, iv } = enc.generateEncryptionKey();
@@ -28,20 +26,18 @@ async function uploadFile(req, res) {
     const encryptedBuffer = enc.encryptBuffer(fileBuffer, key, iv);
     const encryptedName = `${uuidv4()}.enc`;
     await storage.save(encryptedBuffer, encryptedName);
-    await fs.remove(tempFile.path);
     await client.query("BEGIN");
     const fileResult = await client.query(
       `INSERT INTO files (user_id, original_name, encrypted_name, mime_type, size, encryption_key_ref, encryption_iv, virus_scan_status, checksum)
        VALUES ($1,$2,$3,$4,$5,$6,$7,'clean',$8) RETURNING id, original_name, size, upload_date, mime_type`,
-      [req.user.id, tempFile.originalname, encryptedName, tempFile.mimetype, tempFile.size, key, iv, checksum]
+      [req.user.id, uploadedFile.originalname, encryptedName, uploadedFile.mimetype, uploadedFile.size, key, iv, checksum]
     );
-    await client.query("UPDATE users SET storage_used = storage_used + $1 WHERE id = $2", [tempFile.size, req.user.id]);
+    await client.query("UPDATE users SET storage_used = storage_used + $1 WHERE id = $2", [uploadedFile.size, req.user.id]);
     await client.query("COMMIT");
     const file = fileResult.rows[0];
     return res.status(201).json({ message: "File uploaded and encrypted", file: { id: file.id, name: file.original_name, size: file.size, mimeType: file.mime_type, uploadDate: file.upload_date } });
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    if (tempFile?.path) await fs.remove(tempFile.path).catch(() => {});
+    await client.query("ROLLBACK").catch(() => { });
     console.error(err);
     return res.status(500).json({ error: "Upload failed" });
   } finally { client.release(); }
@@ -78,7 +74,7 @@ async function deleteFile(req, res) {
     storage.delete(file.encrypted_name).catch(console.error);
     return res.json({ message: "File deleted" });
   } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
+    await client.query("ROLLBACK").catch(() => { });
     console.error(err);
     return res.status(500).json({ error: "Delete failed" });
   } finally { client.release(); }
