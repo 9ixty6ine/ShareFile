@@ -73,6 +73,11 @@ async function downloadFile(req, res) {
       const valid = await bcrypt.compare(password, link.password_hash);
       if (!valid) return res.status(401).json({ error: "Incorrect password" });
     }
+    const fileExists = await storage.exists(link.encrypted_name);
+    if (!fileExists) {
+      console.error(`Download error: encrypted file not found: ${link.encrypted_name}`);
+      return res.status(404).json({ error: "Encrypted file not found on server. It may have been lost due to server restart." });
+    }
     const encryptedBuffer = await storage.read(link.encrypted_name);
     const decryptedBuffer = enc.decryptBuffer(encryptedBuffer, link.encryption_key_ref, link.encryption_iv);
     await client.query("BEGIN");

@@ -9,7 +9,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 api.interceptors.response.use((r) => r, (error) => {
-  if (error.response?.status === 401) {
+  // Don't redirect to login for public share endpoints (they use 401 for password errors)
+  const url = error.config?.url || "";
+  const isShareEndpoint = url.includes("/share/") && (url.endsWith("/download") || url.endsWith("/info"));
+  if (error.response?.status === 401 && !isShareEndpoint) {
     localStorage.removeItem("token"); localStorage.removeItem("user");
     window.location.href = "/login";
   }

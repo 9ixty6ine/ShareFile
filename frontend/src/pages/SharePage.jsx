@@ -35,8 +35,19 @@ export default function SharePage() {
       downloadBlob(res.data, filename);
       setDone(true);
     } catch (err) {
-      if (err.response?.data?.requiresPassword) { setNeedsPw(true); setError("Password required"); }
-      else setError(err.response?.data?.error || "Download failed");
+      // responseType: "blob" means error responses are also Blobs — parse them
+      let errMsg = "Download failed";
+      try {
+        if (err.response?.data instanceof Blob) {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.requiresPassword) { setNeedsPw(true); setError("Password required"); setDownloading(false); return; }
+          errMsg = json.error || errMsg;
+        } else if (err.response?.data?.error) {
+          errMsg = err.response.data.error;
+        }
+      } catch (_) { /* ignore parse errors */ }
+      setError(errMsg);
     } finally {
       setDownloading(false);
     }
