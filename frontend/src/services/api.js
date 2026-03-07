@@ -24,8 +24,8 @@ export const filesAPI = {
 export const shareAPI = {
   create: (d) => api.post("/share/create", d),
   list: () => api.get("/share"),
-  getInfo: (token) => axios.get(`/api/share/${token}/info`),
-  download: (token, password) => axios.post(`/api/share/${token}/download`, { password }, { responseType: "blob" }),
+  getInfo: (token) => api.get(`/share/${token}/info`),
+  download: (token, password) => api.post(`/share/${token}/download`, { password }, { responseType: "blob" }),
   revoke: (id) => api.delete(`/share/${id}`),
 };
 export const analyticsAPI = { get: () => api.get("/analytics") };
