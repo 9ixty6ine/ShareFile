@@ -7,6 +7,7 @@ const routes = require("./routes");
 const { apiLimiter } = require("./middlewares/rateLimiter");
 
 const app = express();
+app.set("trust proxy", 1); // Trust first proxy (Vercel/reverse proxy)
 
 // Allowed origins: support comma-separated list for multiple environments
 const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:5173")
